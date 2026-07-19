@@ -1,0 +1,37 @@
+# Database dumps (very large sql files)
+*.sql
+
+# Environment / sensitive configuration files
+.env
+.env.local
+.env.*
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Output directories / generated prototype results
+**/output/
+*.csv
+*.json
+!requirements.txt
+!package.json
+
+# IDE settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS-specific files
+Thumbs.db
+desktop.ini
+.DS_Store
