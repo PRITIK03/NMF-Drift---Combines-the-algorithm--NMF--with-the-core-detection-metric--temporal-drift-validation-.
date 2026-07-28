@@ -101,7 +101,7 @@ def compute_drift_scores(
     PASS result (for validation): Mean drift of churned > mean drift of retained.
     """
     if previous_blends is None:
-        logger.info("No previous blends - returning zero drift (first run)")
+        logger.info("No previous blends - returning zero drift (first run baseline)")
         result = pd.DataFrame({
             "customer_id": current_blends.index,
             "drift_score": 0.0,
@@ -111,6 +111,8 @@ def compute_drift_scores(
             "threshold_high": np.nan,
             "threshold_medium": np.nan,
             "has_previous_state": False,
+            "is_cold_start": True,
+            "scoring_mode": "COLD_START_BASELINE",
         })
         result.set_index("customer_id", inplace=True)
         return result
@@ -147,9 +149,11 @@ def compute_drift_scores(
             "pattern_moved_from": moved_from,
             "pattern_moved_toward": moved_toward,
             "has_previous_state": True,
+            "is_cold_start": False,
+            "scoring_mode": "NMF_DRIFT",
         })
 
-    # Add customers only in current (new customers)
+    # Add customers only in current (new customers - Cold Start)
     new_ids = current_blends.index.difference(previous_blends.index)
     for cust_id in new_ids:
         records.append({
@@ -158,6 +162,8 @@ def compute_drift_scores(
             "pattern_moved_from": "N/A (new customer)",
             "pattern_moved_toward": "N/A (new customer)",
             "has_previous_state": False,
+            "is_cold_start": True,
+            "scoring_mode": "COLD_START_BASELINE",
         })
 
     drift_df = pd.DataFrame(records)

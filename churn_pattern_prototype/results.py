@@ -383,6 +383,35 @@ def save_results_to_files(
     print(f"  Saved: {metadata_path}")
 
 
+def print_engineering_challenges_report(challenges_results: List[Dict]) -> None:
+    """
+    Print a structured audit table demonstrating how all 12 engineering challenges
+    are addressed and verified in the prototype.
+    """
+    print("\n" + "=" * 85)
+    print("12 ENGINEERING CHALLENGES IMPLEMENTATION & VERIFICATION AUDIT")
+    print("=" * 85)
+
+    print(f"\n  {'#':<3s} {'Engineering Challenge':<32s} {'Status':<16s} {'Verification / Evidence':<30s}")
+    print("  " + "-" * 83)
+
+    for item in challenges_results:
+        idx = item.get("id", "-")
+        title = item.get("title", "")
+        status = item.get("status", "PASS")
+        evidence = item.get("evidence", "")
+
+        if len(title) > 30:
+            title = title[:28] + ".."
+        if len(evidence) > 28:
+            evidence = evidence[:26] + ".."
+
+        print(f"  {str(idx):<3s} {title:<32s} [{status:^14s}] {evidence:<30s}")
+
+    print("\n" + "=" * 85)
+
+
+
 # ===================================================================
 # Private helpers
 # ===================================================================

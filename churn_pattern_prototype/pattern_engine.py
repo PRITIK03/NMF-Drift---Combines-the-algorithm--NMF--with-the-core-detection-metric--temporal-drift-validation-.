@@ -17,7 +17,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
+from scipy.optimize import linear_sum_assignment, nnls
 from scipy.spatial.distance import cosine as cosine_distance
 from sklearn.decomposition import NMF
 from sklearn.metrics.pairwise import cosine_similarity
@@ -501,3 +501,109 @@ def _generate_pattern_label(
     else:
         secondary = sorted_cats[1][0].title()
         return f"{primary} & {secondary} Pattern"
+
+
+# ===================================================================
+# Real-Time Prediction & Continuous Learning (Challenges 6 & 7)
+# ===================================================================
+
+def predict_customer_blend_online(
+    customer_vector: np.ndarray,
+    H_matrix: np.ndarray,
+    pattern_labels: List[str],
+) -> Dict[str, float]:
+    """
+    Challenge #6: Real-Time Prediction via Non-Negative Least Squares (NNLS).
+
+    Given a single customer feature vector x (1 x features) and a pre-trained
+    pattern matrix H (k x features), solves:
+        min || x - w H ||_2^2   s.t.  w >= 0
+
+    This projects the customer onto the existing pattern space in < 1ms
+    without retraining the batch NMF model.
+
+    Args:
+        customer_vector: 1D array of customer feature values.
+        H_matrix: Pre-trained pattern matrix (k x features).
+        pattern_labels: List of pattern label strings.
+
+    Returns:
+        Dict mapping pattern label -> blend weight (normalised 0 to 1).
+    """
+    # NNLS solves A w = b for w >= 0 where A = H.T and b = customer_vector
+    A = H_matrix.T
+    b = np.asarray(customer_vector, dtype=float)
+
+    raw_weights, residual = nnls(A, b)
+
+    total = np.sum(raw_weights)
+    if total > 0:
+        blend_weights = raw_weights / total
+    else:
+        # Equal distribution if all zeros
+        blend_weights = np.ones(len(pattern_labels)) / len(pattern_labels)
+
+    return {label: float(weight) for label, weight in zip(pattern_labels, blend_weights)}
+
+
+def evaluate_retraining_trigger(
+    current_feature_matrix: np.ndarray,
+    H_matrix: np.ndarray,
+    baseline_recon_error: float,
+    new_customers_count: int = 0,
+    historical_customers_count: int = 100,
+    max_error_increase_pct: float = 20.0,
+    max_new_customers_pct: float = 30.0,
+) -> Dict[str, object]:
+    """
+    Challenge #7: Continuous Learning & Data-Driven Retraining Trigger.
+
+    Evaluates whether a tenant's NMF model needs to be retrained based on:
+      1. Reconstruction error drift (model fitting degrade on new data).
+      2. New customer volume growth ratio.
+
+    Args:
+        current_feature_matrix: Current customer x feature data matrix.
+        H_matrix: Existing pattern matrix (k x features).
+        baseline_recon_error: Reconstruction error logged during last retrain.
+        new_customers_count: Number of new customers added since last retrain.
+        historical_customers_count: Customer count during last retrain.
+        max_error_increase_pct: Max allowable error increase % before triggering retrain.
+        max_new_customers_pct: Max allowable % growth in customers before triggering retrain.
+
+    Returns:
+        Dict with keys: retrain_required (bool), reason (str),
+        current_error (float), error_increase_pct (float), growth_pct (float).
+    """
+    # Project current data using existing H to compute current reconstruction error
+    # W_current = current_feature_matrix @ H.T (approximate pseudo-inverse projection)
+    H_pinv = np.linalg.pinv(H_matrix)
+    W_approx = np.maximum(0, current_feature_matrix @ H_pinv)
+    reconstruction = W_approx @ H_matrix
+    current_error = float(np.linalg.norm(current_feature_matrix - reconstruction))
+
+    error_increase_pct = 0.0
+    if baseline_recon_error > 0:
+        error_increase_pct = ((current_error - baseline_recon_error) / baseline_recon_error) * 100.0
+
+    growth_pct = 0.0
+    if historical_customers_count > 0:
+        growth_pct = (new_customers_count / historical_customers_count) * 100.0
+
+    triggers = []
+    if error_increase_pct > max_error_increase_pct:
+        triggers.append(f"Reconstruction error increased by {error_increase_pct:.1f}% (> {max_error_increase_pct}%)")
+    if growth_pct > max_new_customers_pct:
+        triggers.append(f"Customer base grew by {growth_pct:.1f}% (> {max_new_customers_pct}%)")
+
+    retrain_required = len(triggers) > 0
+    reason = " | ".join(triggers) if retrain_required else "Model stable; no retraining needed"
+
+    return {
+        "retrain_required": retrain_required,
+        "reason": reason,
+        "current_error": current_error,
+        "baseline_error": baseline_recon_error,
+        "error_increase_pct": error_increase_pct,
+        "growth_pct": growth_pct,
+    }

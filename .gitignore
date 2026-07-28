@@ -1,5 +1,6 @@
-# Database dumps (very large sql files)
+# Database dumps & local data directories
 *.sql
+mysql_data/
 
 # Environment / sensitive configuration files
 .env

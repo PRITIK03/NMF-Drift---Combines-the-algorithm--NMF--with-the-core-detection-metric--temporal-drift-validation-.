@@ -547,3 +547,44 @@ def _rows_to_feature_df(
     df = scaled_df
 
     return df
+
+
+def use_population_baseline_model(
+    feature_df: pd.DataFrame,
+    min_customers_threshold: int = 5,
+) -> Tuple[pd.DataFrame, pd.DataFrame, List[str]]:
+    """
+    Challenge #1: Data Sufficiency (Small Tenant Problem).
+
+    When a tenant has fewer customers than min_customers_threshold (< 5), NMF
+    cannot discover stable behavioral clusters. This fallback uses population-level
+    mean feature weights to produce a baseline scoring model until the tenant
+    accumulates sufficient customer history.
+
+    Args:
+        feature_df: Customer x feature DataFrame.
+        min_customers_threshold: Minimum customer count threshold (default 5).
+
+    Returns:
+        Tuple of:
+          - H_baseline (1 x features): Single population baseline pattern.
+          - W_baseline (customers x 1): Equal baseline blend weights (1.0).
+          - pattern_labels: ['Population Baseline Pattern']
+    """
+    logger.info(
+        "  [FALLBACK] Tenant customer count (%d) < threshold (%d). "
+        "Using population-based baseline model.",
+        len(feature_df), min_customers_threshold,
+    )
+    feature_names = feature_df.columns.tolist()
+    customer_ids = feature_df.index.tolist()
+
+    # Single pattern = column means
+    mean_vec = feature_df.mean(axis=0).values.reshape(1, -1)
+    H_baseline = mean_vec / (np.linalg.norm(mean_vec) + 1e-9)
+
+    W_baseline = np.ones((len(customer_ids), 1))
+    pattern_labels = ["Population Baseline Pattern"]
+
+    return H_baseline, W_baseline, pattern_labels
+
